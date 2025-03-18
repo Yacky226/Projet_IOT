@@ -1,31 +1,36 @@
 const cleanAccidentData = async (rawData) => {
     const cleanedData = [];
-    const streetnamesSet = new Set(); // Utiliser un Set pour éviter les doublons
+    const streetnamesSet = new Set(); // Set pour éviter les doublons
 
     for (const accident of rawData) {
         try {
-            const { on_street_name, borough, crash_date, crash_time, collision_id } = accident;
+            const {
+                on_street_name,
+                borough,
+                crash_date,
+                crash_time,
+                collision_id,
+                latitude,
+                longitude,
+                number_of_persons_injured,
+                number_of_persons_killed,
+                contributing_factor_vehicle_1,
+                vehicle_type_code1
+            } = accident;
 
             // Vérifier si l'identifiant est présent
-            if (!collision_id) {
+            if (!collision_id || (!on_street_name && !borough) || !longitude || !latitude) {
                 console.warn(" collision_id manquant, accident ignoré");
                 continue;
             }
 
-            let nameStreet = "";
-            let latitude = null;
-            let longitude = null;
+            let nameStreet = on_street_name?.trim() || borough?.trim() || "Non précisé";
+            let lat = latitude ? Number(latitude) : null;
+            let lon = longitude ? Number(longitude) : null;
 
-            // Si des coordonnées GPS sont fournies
-            if (accident.latitude && accident.longitude) {
-                latitude = parseFloat(accident.latitude);
-                longitude = parseFloat(accident.longitude);
-                nameStreet = accident.borough?.trim() || accident.on_street_name?.trim();
-            } 
-            // Si on a un nom de rue, on l'ajoute
-            else if (on_street_name) {
-                nameStreet = on_street_name.trim();
-                //streetnamesSet.add(nameStreet); // Ajoute uniquement les noms uniques
+            // Ajouter les noms uniques dans le Set
+            if (on_street_name) {
+                streetnamesSet.add(nameStreet);
             }
 
             cleanedData.push({
@@ -33,15 +38,16 @@ const cleanAccidentData = async (rawData) => {
                 crash_date: crash_date ? new Date(crash_date) : null,
                 crash_time: crash_time || "00:00",
                 on_street_name: nameStreet,
-                number_of_persons_injured: isNaN(parseInt(accident.number_of_persons_injured)) ? 0 : parseInt(accident.number_of_persons_injured),
-                number_of_persons_killed: isNaN(parseInt(accident.number_of_persons_killed)) ? 0 : parseInt(accident.number_of_persons_killed),
-                contributing_factor_vehicle_1: accident.contributing_factor_vehicle_1?.trim() || "Non précisé",
-                vehicle_type_code1: accident.vehicle_type_code1?.trim() || "Non précisé",
-                latitude, 
-                longitude
+                number_of_persons_injured: Number(number_of_persons_injured) || 0,
+                number_of_persons_killed: Number(number_of_persons_killed) || 0,
+                contributing_factor_vehicle_1: contributing_factor_vehicle_1?.trim() || "Non précisé",
+                vehicle_type_code1: vehicle_type_code1?.trim() || "Non précisé",
+                latitude: lat,
+                longitude: lon
             });
+
         } catch (error) {
-            console.warn(` Erreur lors du traitement d'un accident (collision_id: ${accident.collision_id || "N/A"}) : ${error.message}`);
+            console.warn(` Erreur traitement accident (collision_id: ${accident.collision_id || "N/A"}) : ${error.message}`);
         }
     }
 

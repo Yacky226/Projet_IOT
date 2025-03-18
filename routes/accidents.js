@@ -9,7 +9,9 @@ const processStreets = require('../services/geocode');
 const Traffic = require('../models/Traffic');
 const fetchTrafficData = require('../services/fetchTraffic');
 const cleanTrafficData = require('../services/cleanTraffic');
-
+const crash_current=require('../services/CrashperPeriod');
+const topZone=require('../services/Topdangerous');
+const { analyzeWithML, getTopNDangerousZoneswithMl } = require('../services/riskbyml');
 const router = express.Router();
 
 // Routes GET spécifiques d'abord
@@ -20,6 +22,32 @@ router.get('/risk-by-zone', async (req, res) => {
         res.status(200).json(riskByZone);
     } catch (err) {
         res.status(500).json({ message: "Erreur lors du calcul du risque par zone", error: err.message });
+    }
+});
+
+router.get('/crash-per-period',async(req,res)=>{
+    try{
+        const accidents=await Accident.find();
+        const crashPerPeriod=crash_current(accidents);
+        res.status(200).json(crashPerPeriod);
+    }
+    catch(err){
+        res.status(500).json({message:"Erreur lors du calcul du crash par période",error:err.message});
+    }
+});
+
+
+router.get('/top-dangerous-zones', async (req, res) => {
+    try {
+        const accidents=await Accident.find();
+        const crashPerPeriod=crash_current(accidents);
+        
+        // Récupère le top 5 des zones les plus dangereuses
+        const topZones = topZone(crashPerPeriod.accidentsByZone, 5); 
+
+        res.status(200).json(topZones);
+    } catch (err) {
+        res.status(500).json({ message: "Erreur lors du calcul du top des zones les plus dangereuses", error: err.message });
     }
 });
 
@@ -45,7 +73,32 @@ router.get('/risk-by-hour-and-zone', async (req, res) => {
     }
 });
 
+router.get('/top-dangerous-zones-ml', async (req, res) => {
+    try {
+        const yearsBack = parseInt(req.query.years) || 1;
+        if (yearsBack < 1) {
+            return res.status(400).json({ message: "Le nombre d'années doit être supérieur ou égal à 1" });
+        }
 
+        const accidents = await Accident.find();
+        const predictions = await analyzeWithML(accidents, yearsBack);
+
+        if (predictions.length === 0) {
+            return res.status(200).json([]);
+        }
+
+        const topZones = getTopNDangerousZoneswithMl(predictions, 5);
+        res.status(200).json({
+            period: `${new Date().getFullYear() - yearsBack + 1} - ${new Date().getFullYear()}`,
+            topZones
+        });
+    } catch (err) {
+        res.status(500).json({ 
+            message: "Erreur lors de l'analyse ML des zones dangereuses", 
+            error: err.message 
+        });
+    }
+});
 // Autres routes
 router.get('/', async (req, res) => {
     try {
@@ -88,7 +141,7 @@ router.post('/', async (req, res) => {
 
         // Insérer les données dans MongoDB
         await Accident.insertMany(cleanedData);
-        await Street.insertMany(uniqueStreetnames);
+       // await Street.insertMany(uniqueStreetnames);
 
         res.status(201).json({ 
             message: 'Accidents importés et traités avec succès', 

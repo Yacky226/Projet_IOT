@@ -2,7 +2,7 @@ const axios = require('axios');
 
 async function fetchNYCAccidentData() {
     try {
-        const batchSize = 500000; // Nombre total de données à récupérer
+        const batchSize = 100000; // Nombre total de données à récupérer
         const chunkSize = 10000; // Taille de chaque requête
         let requests = [];
 
@@ -11,7 +11,9 @@ async function fetchNYCAccidentData() {
                 axios.get('https://data.cityofnewyork.us/resource/h9gi-nx95.json', {
                     params: {
                         $limit: chunkSize,
-                        $offset: offset
+                        $offset: offset,
+                        $where: "crash_date >= '2022-01-01T00:00:00.000'", // Filtre depuis 2021
+                        $order: "crash_date DESC" // Trie du plus récent au plus ancien
                     }
                 })
             );
